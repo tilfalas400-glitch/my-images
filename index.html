@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مولّد الصور 2</title>
+<style>
+:root{--bg:#14171c;--card:#1d2229;--tx:#eef1f5;--mu:#9aa5b4;--ac:#4fb3a5;--er:#e8806f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.6 system-ui,"Noto Naskh Arabic",sans-serif;padding:16px;max-width:560px;margin-inline:auto}
+h1{font-size:1.3rem;margin:0 0 8px}
+label{display:block;color:var(--mu);font-size:.9rem;margin:12px 0 4px}
+textarea,select,input[type=text],input[type=number]{width:100%;background:var(--card);color:var(--tx);border:1px solid #2d3540;border-radius:10px;padding:10px;font:inherit}
+textarea{min-height:90px}
+.row{display:flex;gap:10px}.row>div{flex:1}
+.ck{display:flex;gap:8px;align-items:center;margin:8px 0;color:var(--tx)}
+button{width:100%;margin-top:14px;padding:13px;border:0;border-radius:10px;background:var(--ac);color:#0b1412;font:inherit;font-weight:700}
+button:disabled{opacity:.5}
+.sec{background:var(--card);color:var(--tx);border:1px solid #2d3540;margin-top:6px}
+#st{margin-top:12px;color:var(--mu);min-height:1.6em}#st.err{color:var(--er)}
+.out img{width:100%;border-radius:12px;margin-top:12px}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+</style>
+</head>
+<body>
+<h1>مولّد الصور 2</h1>
+<label for="p">وصف الصورة (عربي أو إنجليزي)</label>
+<textarea id="p"></textarea>
+<select id="h" aria-label="الأوصاف السابقة"><option value="">الأوصاف السابقة...</option></select>
+<div class="row">
+<div><label for="s">النمط</label><select id="s">
+<option value="none">بدون</option><option value="real">واقعي</option><option value="art">فني</option>
+<option value="anime">أنمي</option><option value="char">شخصية</option><option value="bg">خلفية</option></select></div>
+<div><label for="z">الحجم</label><select id="z">
+<option value="512x512">مربع</option><option value="512x768">طولي</option><option value="768x512">عرضي</option></select></div>
+</div>
+<label for="m">النموذج</label>
+<select id="m"><option value="">تلقائي</option></select>
+<div class="row">
+<div><label for="n">عدد الصور</label><input id="n" type="number" min="1" max="4" value="1"></div>
+<div><label for="c">الالتزام بالوصف</label><input id="c" type="number" min="4" max="12" value="7"></div>
+</div>
+<div class="ck"><input id="tr" type="checkbox" checked><label for="tr" style="margin:0;color:inherit">ترجمة الوصف العربي تلقائيًا</label></div>
+<div class="ck"><input id="fc" type="checkbox"><label for="fc" style="margin:0;color:inherit">تحسين الوجوه</label></div>
+<div class="ck"><input id="up" type="checkbox"><label for="up" style="margin:0;color:inherit">تكبير الدقة (أبطأ)</label></div>
+<label for="f">تعديل صورة موجودة (اختياري)</label>
+<input id="f" type="file" accept="image/*">
+<label for="d">قوة التغيير عند التعديل: <span id="dv">0.6</span></label>
+<input id="d" type="range" min="0.2" max="0.9" step="0.1" value="0.6" style="width:100%">
+<label for="k">مفتاح AI Horde (اختياري)</label>
+<input id="k" type="text" value="0000000000" dir="ltr">
+<button id="go">إنشاء الصور</button>
+<div id="st" role="status"></div>
+<div class="out" id="out"></div>
+
+<!-- الربط: هذا السطر يستدعي المحرك. يجب أن يكون engine.js في نفس المجلد -->
+<script src="engine.js"></script>
+<script>
+const $=i=>document.getElementById(i);
+const st=(t,e)=>{$("st").textContent=t;$("st").className=e?"err":""};
+(async()=>{try{(await Engine.models()).forEach(n=>$("m").add(new Option(n,n)))}catch(e){}})();
+const fillHist=()=>{$("h").length=1;Engine.hist.get().forEach((x,i)=>$("h").add(new Option(x.prompt.slice(0,40),i)))};
+fillHist();
+$("h").onchange=()=>{const x=Engine.hist.get()[$("h").value];if(x){$("p").value=x.prompt;$("s").value=x.style||"none"}};
+$("d").oninput=()=>$("dv").textContent=$("d").value;
+$("go").onclick=async()=>{
+  let p=$("p").value.trim();
+  if(!p)return st("اكتب وصف الصورة أولًا",1);
+  $("go").disabled=true;$("out").innerHTML="";
+  try{
+    const orig=p;
+    if($("tr").checked){st("جارٍ الترجمة...");p=await Engine.translate(p);if(p!==orig)$("p").value=orig}
+    const [w,h]=$("z").value.split("x").map(Number),file=$("f").files[0];
+    const imgs=await Engine.generate({
+      prompt:p,style:$("s").value,width:w,height:h,model:$("m").value,cfg:+$("c").value,
+      n:+$("n").value,faces:$("fc").checked,upscale:$("up").checked,
+      source:file?await Engine.fileToB64(file):null,strength:+$("d").value,key:$("k").value.trim()
+    },st);
+    imgs.forEach((u,i)=>{
+      const im=new Image();im.src=u;im.alt="صورة "+(i+1);
+      const b=document.createElement("button");b.className="sec";b.textContent="حفظ الصورة "+(i+1);
+      b.onclick=async()=>{try{const bl=await (await fetch(u)).blob(),a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download="img-"+Date.now()+".webp";a.click()}catch(e){window.open(u,"_blank")}};
+      $("out").append(im,b);
+    });
+    fillHist();st("تمت. الترجمة المستخدمة: "+p);
+  }catch(e){st(e.message||"خطأ في الاتصال",1)}
+  $("go").disabled=false;
+};
+</script>
+</body>
+</html>
